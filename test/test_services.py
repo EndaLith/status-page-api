@@ -30,3 +30,21 @@ def test_archived_services_is_hidden(client):
     client.delete(f"/services/{service_id}")
     assert client.get(f"/services/{service_id}").status_code == 404
     assert client.get("/services").json() == []
+
+
+def test_archive_only_affects_requested_service(client):
+    a = client.post(
+        "/services",
+        json={"name": "A", "description": "first", "url": "http://a.com"},
+    )
+    b = client.post(
+        "/services",
+        json={"name": "B", "description": "second", "url": "http://b.com"},
+    )
+    a_id = a.json()["id"]
+    b_id = b.json()["id"]
+
+    client.delete(f"/services/{b_id}")
+
+    assert client.get(f"/services/{b_id}").status_code == 404
+    assert client.get(f"/services/{a_id}").status_code == 200
