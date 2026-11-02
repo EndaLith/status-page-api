@@ -7,6 +7,7 @@ from app.database import get_db
 from app.models import Service, User
 from app.schemas import ServiceCreate, ServiceRead, Token, UserCreate, UserRead
 from app.security import create_access_token, hash_password, verify_password
+from app.dependencies import get_current_user
 
 app = FastAPI(title="Status Page API")
 
@@ -107,3 +108,8 @@ def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get
         raise HTTPException(status_code=401, detail="Invalid username or password")
     token = create_access_token(user.username)
     return {"access_token": token, "token_type": "bearer"}
+
+
+@app.get("/auth/me", response_model=UserRead)
+def read_me(current_user: User = Depends(get_current_user)):
+    return current_user
