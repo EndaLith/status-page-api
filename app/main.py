@@ -1,12 +1,29 @@
 from fastapi import Depends, FastAPI, HTTPException
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Service
-from app.schemas import ServiceCreate, ServiceRead
+from app.models import Service, User
+from app.schemas import ServiceCreate, ServiceRead, Token, UserCreate, UserRead
+from app.security import create_access_token, hash_password, verify_password
 
 app = FastAPI(title="Status Page API")
+
+
+@app.post("/auth/register", response_model=UserRead, status_code=201)
+def register(data: UserCreate, db: Session = Depends(get_db)):
+    user = User(
+        username=data.username, password_hash=hash_password(data.password), role="user"
+    )
+    db.add(user)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Username already taken")
+    db.refresh(user)
+    return user
 
 
 @app.get("/home")
@@ -81,3 +98,12 @@ def archive_service(service_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Service not found")
     service.is_active = False
     db.commit()
+
+
+@app.post("/auth/login", response_model=Token)
+def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.username == form.username).first()
+    if user is None or not verify_password(form.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+    token = create_access_token(user.username)
+    return {"access_token": token, "token_type": "bearer"}
