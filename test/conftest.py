@@ -8,6 +8,8 @@ from sqlalchemy.orm import sessionmaker
 
 from app.database import Base, get_db
 from app.main import app
+from app.models import User
+from app.security import hash_password
 
 load_dotenv()
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL")
@@ -34,3 +36,25 @@ def client():
     yield TestClient(app)
     app.dependency_overrides.clear()
     Base.metadata.drop_all(engine)
+
+
+@pytest.fixture()
+def admin_header(client):
+    db = TestingSessionLocal()
+    db.add(
+        User(
+            username="admin",
+            password_hash=hash_password("secret123"),
+            role="admin",
+        )
+    )
+    db.commit()
+    db.close()
+
+    response = client.post(
+        "/auth/login",
+        data={"username": "admin", "password": "secret123"},
+    )
+    assert response.status_code == 200, response.json()
+    token = response.json()["access_token"]
+    return {"Authorization": f"bearer {token}"}

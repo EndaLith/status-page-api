@@ -4,10 +4,10 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.dependencies import get_current_user, require_admin
 from app.models import Service, User
 from app.schemas import ServiceCreate, ServiceRead, Token, UserCreate, UserRead
 from app.security import create_access_token, hash_password, verify_password
-from app.dependencies import get_current_user
 
 app = FastAPI(title="Status Page API")
 
@@ -50,7 +50,11 @@ def get_service(service_id: int, db: Session = Depends(get_db)):
 
 
 @app.post("/services", response_model=ServiceRead, status_code=201)
-def create_service(data: ServiceCreate, db: Session = Depends(get_db)):
+def create_service(
+    data: ServiceCreate,
+    db: Session = Depends(get_db),
+    admin: User = (Depends(require_admin)),
+):
     service = Service(name=data.name, description=data.description, url=data.url)
     db.add(service)
     try:
@@ -65,7 +69,12 @@ def create_service(data: ServiceCreate, db: Session = Depends(get_db)):
 
 
 @app.put("/services/{service_id}", response_model=ServiceRead)
-def update_service(service_id: int, data: ServiceCreate, db: Session = Depends(get_db)):
+def update_service(
+    service_id: int,
+    data: ServiceCreate,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
     service = (
         db.query(Service)
         .filter(Service.id == service_id, Service.is_active == True)
@@ -89,7 +98,11 @@ def update_service(service_id: int, data: ServiceCreate, db: Session = Depends(g
 
 
 @app.delete("/services/{service_id}", status_code=204)
-def archive_service(service_id: int, db: Session = Depends(get_db)):
+def archive_service(
+    service_id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
     service = (
         db.query(Service)
         .filter(Service.id == service_id, Service.is_active == True)
