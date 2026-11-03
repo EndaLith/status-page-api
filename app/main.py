@@ -1,12 +1,22 @@
-from fastapi import Depends, FastAPI, HTTPException
+from datetime import datetime
+
+from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.dependencies import get_current_user, require_admin
-from app.models import Service, User
-from app.schemas import ServiceCreate, ServiceRead, Token, UserCreate, UserRead
+from app.models import HealthCheck, Service, User
+from app.schemas import (
+    HealthCheckCreate,
+    HealthCheckRead,
+    ServiceCreate,
+    ServiceRead,
+    Token,
+    UserCreate,
+    UserRead,
+)
 from app.security import create_access_token, hash_password, verify_password
 
 app = FastAPI(title="Status Page API")
@@ -126,3 +136,59 @@ def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get
 @app.get("/auth/me", response_model=UserRead)
 def read_me(current_user: User = Depends(get_current_user)):
     return current_user
+
+
+@app.post(
+    "/services/{service_id}/health_checks",
+    response_model=HealthCheckRead,
+    status_code=201,
+)
+def create_health_check(
+    service_id: int,
+    data: HealthCheckCreate,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    service = (
+        db.query(Service)
+        .filter(Service.id == service_id, Service.is_active == True)
+        .first()
+    )
+    if service is None:
+        raise HTTPException(status_code=404, detail="Service not found")
+    check = HealthCheck(
+        service_id=service_id,
+        is_up=data.is_up,
+        response_ms=data.response_ms,
+        message=data.message,
+    )
+    db.add(check)
+    db.commit()
+    db.refresh(check)
+    return check
+
+
+@app.get("/services/{service_id}/health_checks", response_model=list[HealthCheckRead])
+def list_health_checks(
+    service_id: int,
+    since: datetime | None = None,
+    until: datetime | None = None,
+    limit: int = Query(100, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+):
+    service = (
+        db.query(Service)
+        .filter(Service.id == service_id, Service.is_active == True)
+        .first()
+    )
+    if service is None:
+        raise HTTPException(status_code=404, detail="Service not found")
+    query = db.query(HealthCheck).filter(HealthCheck.service_id == service.id)
+    if since is not None:
+        query = query.filter(HealthCheck.checked_at >= since)
+    if until is not None:
+        query = query.filter(HealthCheck.checked_at <= until)
+    return (
+        query.order_by(HealthCheck.checked_at.desc()).limit(limit).offset(offset).all()
+    )
