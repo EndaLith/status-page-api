@@ -7,10 +7,20 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.dependencies import get_current_user, require_admin
-from app.models import HealthCheck, Service, User
+from app.incident_rules import INITIAL_STATUS
+from app.models import (
+    HealthCheck,
+    Incident,
+    IncidentService,
+    IncidentUpdate,
+    Service,
+    User,
+)
 from app.schemas import (
     HealthCheckCreate,
     HealthCheckRead,
+    IncidentCreate,
+    IncidentRead,
     ServiceCreate,
     ServiceRead,
     Token,
@@ -192,3 +202,36 @@ def list_health_checks(
     return (
         query.order_by(HealthCheck.checked_at.desc()).limit(limit).offset(offset).all()
     )
+
+
+@app.post("/incidents", response_model=IncidentRead, status_code=201)
+def create_incident(
+    data: IncidentCreate,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    unique_ids = set(data.service_ids)
+    found = (
+        db.query(Service)
+        .filter(Service.id.in_(unique_ids), Service.is_active == True)
+        .count()
+    )
+    if found != len(unique_ids):
+        raise HTTPException(status_code=404, detail="Service not found")
+
+    incident = Incident(title=data.title, status=INITIAL_STATUS)
+    db.add(incident)
+    db.flush()
+
+    for service_id in unique_ids:
+        db.add(IncidentService(incident_id=incident.id, service_id=service_id))
+    db.add(
+        IncidentUpdate(
+            incident_id=incident.id,
+            message=data.message,
+            status=INITIAL_STATUS,
+        )
+    )
+    db.commit()
+    db.refresh(incident)
+    return incident

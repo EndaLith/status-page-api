@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ServiceRead(BaseModel):
@@ -52,3 +52,19 @@ class HealthCheckRead(BaseModel):
     is_up: bool
     response_ms: int | None
     message: str | None
+
+
+class IncidentCreate(BaseModel):
+    title: str
+    message: str
+    service_ids: list[int] = Field(min_length=1)
+
+
+class IncidentRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    title: str
+    status: str
+    started_at: datetime
+    resolved_at: datetime | None
