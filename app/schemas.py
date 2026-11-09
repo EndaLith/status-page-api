@@ -81,3 +81,8 @@ class IncidentUpdatesRead(BaseModel):
 
 class IncidentDetail(IncidentRead):
     updates: list[IncidentUpdatesRead]
+
+
+class IncidentStatusUpdate(BaseModel):
+    status: str
+    message: str

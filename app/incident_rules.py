@@ -2,9 +2,9 @@ INITIAL_STATUS = "investigating"
 
 ALLOWED_TRANSITIONS = {
     "investigating": {"identified", "monitoring", "resolved"},
-    "identified": {"investigation", "monitoring", "resolved"},
-    "monitoring": {"investigation", "resolved"},
-    "resolved": {"investigation"},
+    "identified": {"investigating", "monitoring", "resolved"},
+    "monitoring": {"investigating", "resolved"},
+    "resolved": {"investigating"},
 }
 
 

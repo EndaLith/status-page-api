@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.security import OAuth2PasswordRequestForm
@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.dependencies import get_current_user, require_admin
-from app.incident_rules import INITIAL_STATUS
+from app.incident_rules import INITIAL_STATUS, can_transition
 from app.models import (
     HealthCheck,
     Incident,
@@ -22,6 +22,7 @@ from app.schemas import (
     IncidentCreate,
     IncidentDetail,
     IncidentRead,
+    IncidentStatusUpdate,
     ServiceCreate,
     ServiceRead,
     Token,
@@ -251,4 +252,34 @@ def get_incident(incident_id: int, db: Session = Depends(get_db)):
     incident = db.query(Incident).filter(Incident.id == incident_id).first()
     if incident is None:
         raise HTTPException(status_code=404, detail="Incident not found")
+    return incident
+
+
+@app.patch("/incidents/{incident_id}/status", response_model=IncidentDetail)
+def change_incident_status(
+    incident_id: int,
+    data: IncidentStatusUpdate,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    incident = db.query(Incident).filter(Incident.id == incident_id).first()
+    if incident is None:
+        raise HTTPException(status_code=404, detail="Incident not found")
+    if not can_transition(incident.status, data.status):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot change status from {incident.status} to {data.status}",
+        )
+    incident.status = data.status
+    if data.status == "resolved":
+        incident.resolved_at = datetime.now(UTC)
+    else:
+        incident.resolved_at = None
+    db.add(
+        IncidentUpdate(
+            incident_id=incident.id, message=data.message, status=data.status
+        )
+    )
+    db.commit()
+    db.refresh(incident)
     return incident
