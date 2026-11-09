@@ -68,3 +68,16 @@ class IncidentRead(BaseModel):
     status: str
     started_at: datetime
     resolved_at: datetime | None
+
+
+class IncidentUpdatesRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    message: str
+    status: str
+    created_at: datetime
+
+
+class IncidentDetail(IncidentRead):
+    updates: list[IncidentUpdatesRead]

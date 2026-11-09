@@ -20,6 +20,7 @@ from app.schemas import (
     HealthCheckCreate,
     HealthCheckRead,
     IncidentCreate,
+    IncidentDetail,
     IncidentRead,
     ServiceCreate,
     ServiceRead,
@@ -234,4 +235,20 @@ def create_incident(
     )
     db.commit()
     db.refresh(incident)
+    return incident
+
+
+@app.get("/incidents", response_model=list[IncidentRead])
+def list_incidents(active: bool = False, db: Session = Depends(get_db)):
+    query = db.query(Incident)
+    if active:
+        query = query.filter(Incident.resolved_at.is_(None))
+    return query.order_by(Incident.started_at.desc()).all()
+
+
+@app.get("/incidents/{incident_id}", response_model=IncidentDetail)
+def get_incident(incident_id: int, db: Session = Depends(get_db)):
+    incident = db.query(Incident).filter(Incident.id == incident_id).first()
+    if incident is None:
+        raise HTTPException(status_code=404, detail="Incident not found")
     return incident
