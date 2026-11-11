@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -84,5 +85,5 @@ class IncidentDetail(IncidentRead):
 
 
 class IncidentStatusUpdate(BaseModel):
-    status: str
+    status: Literal["investigating", "identified", "monitoring", "resolved"]
     message: str
