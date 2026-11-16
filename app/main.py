@@ -1,7 +1,8 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -26,6 +27,7 @@ from app.schemas import (
     ServiceCreate,
     ServiceRead,
     Token,
+    UptimeRead,
     UserCreate,
     UserRead,
 )
@@ -283,3 +285,35 @@ def change_incident_status(
     db.commit()
     db.refresh(incident)
     return incident
+
+
+@app.get("/services/{service_id}/uptime", response_model=UptimeRead)
+def get_uptime(
+    service_id: int,
+    days: int = Query(30, ge=1, le=365),
+    db: Session = Depends(get_db),
+):
+    service = (
+        db.query(Service)
+        .filter(Service.id == service_id, Service.is_active == True)
+        .first()
+    )
+    if service is None:
+        raise HTTPException(status_code=404, detail="Service not found")
+    since = datetime.now(UTC) - (timedelta(days=days))
+    total, up = (
+        db.query(
+            func.count(HealthCheck.id),
+            func.count(HealthCheck.id).filter(HealthCheck.is_up.is_(True)),
+        )
+        .filter(HealthCheck.service_id == service_id, HealthCheck.checked_at >= since)
+        .one()
+    )
+    percent = None if total == 0 else round(up / total * 100, 2)
+    return UptimeRead(
+        service_id=service_id,
+        days=days,
+        total_checks=total,
+        up_checks=up,
+        uptime_percent=percent,
+    )

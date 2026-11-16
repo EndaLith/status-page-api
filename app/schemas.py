@@ -87,3 +87,11 @@ class IncidentDetail(IncidentRead):
 class IncidentStatusUpdate(BaseModel):
     status: Literal["investigating", "identified", "monitoring", "resolved"]
     message: str
+
+
+class UptimeRead(BaseModel):
+    service_id: int
+    days: int
+    total_checks: int
+    up_checks: int
+    uptime_percent: float | None
