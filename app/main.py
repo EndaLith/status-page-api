@@ -14,6 +14,7 @@ from app.models import (
     Incident,
     IncidentService,
     IncidentUpdate,
+    MaintenanceWindow,
     Service,
     User,
 )
@@ -24,6 +25,8 @@ from app.schemas import (
     IncidentDetail,
     IncidentRead,
     IncidentStatusUpdate,
+    MaintenanceCreate,
+    MaintenanceRead,
     ServiceCreate,
     ServiceRead,
     Token,
@@ -317,3 +320,34 @@ def get_uptime(
         up_checks=up,
         uptime_percent=percent,
     )
+
+
+@app.post("/maintenance-windows", response_model=MaintenanceRead, status_code=201)
+def create_maintenance(
+    data: MaintenanceCreate,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    service = (
+        db.query(Service)
+        .filter(Service.id == data.service_id, Service.is_active == True)
+        .first()
+    )
+    if service is None:
+        raise HTTPException(status_code=404, detail="Service not found")
+    window = MaintenanceWindow(**data.model_dump())
+    db.add(window)
+    db.commit()
+    db.refresh(window)
+    return window
+
+
+@app.get("/maintenance-windows", response_model=list[MaintenanceRead])
+def list_maintenance(
+    upcoming: bool = False,
+    db: Session = Depends(get_db),
+):
+    query = db.query(MaintenanceWindow)
+    if upcoming:
+        query = query.filter(MaintenanceWindow.ended_at >= datetime.now(UTC))
+    return query.order_by(MaintenanceWindow.started_at.asc()).all()

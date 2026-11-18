@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class ServiceRead(BaseModel):
@@ -95,3 +95,28 @@ class UptimeRead(BaseModel):
     total_checks: int
     up_checks: int
     uptime_percent: float | None
+
+
+class MaintenanceCreate(BaseModel):
+    service_id: int
+    title: str
+    description: str
+    started_at: datetime
+    ended_at: datetime
+
+    @model_validator(mode="after")
+    def check_order(self):
+        if self.ended_at <= self.started_at:
+            raise ValueError("ended_at must be after started_at")
+        return self
+
+
+class MaintenanceRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    service_id: int
+    title: str
+    description: str
+    started_at: datetime
+    ended_at: datetime
