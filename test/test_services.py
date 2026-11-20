@@ -83,3 +83,62 @@ def test_create_service_without_token(client):
         json={"name": "Y", "description": "y", "url": "http://y.com"},
     )
     assert response.status_code == 401
+
+
+def test_services_default_criticality(client, admin_header):
+    response = client.post(
+        "/services",
+        json={"name": "A", "description": "d", "url": "http://a.com"},
+        headers=admin_header,
+    )
+    assert response.json()["criticality"] == "medium"
+
+
+def test_service_custom_criticality(client, admin_header):
+    response = client.post(
+        "/services",
+        json={
+            "name": "B",
+            "description": "d",
+            "url": "http://b.com",
+            "criticality": "high",
+        },
+        headers=admin_header,
+    )
+    assert response.status_code == 201
+    assert response.json()["criticality"] == "high"
+
+
+def test_services_invalid_criticality(client, admin_header):
+    response = client.post(
+        "/services",
+        json={
+            "name": "B",
+            "description": "d",
+            "url": "http://b.com",
+            "criticality": "banana",
+        },
+        headers=admin_header,
+    )
+    assert response.status_code == 422
+
+
+def test_services_changes_criticality(client, admin_header):
+    created = client.post(
+        "/services",
+        json={"name": "D", "description": "d", "url": "http://d.com"},
+        headers=admin_header,
+    )
+    service_id = created.json()["id"]
+    update = client.put(
+        f"/services/{service_id}",
+        json={
+            "name": "D",
+            "description": "d",
+            "url": "http://d.com",
+            "criticality": "low",
+        },
+        headers=admin_header,
+    )
+    assert update.status_code == 200
+    assert client.get(f"/services/{service_id}").json()["criticality"] == "low"

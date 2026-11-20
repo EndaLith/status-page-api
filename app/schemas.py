@@ -12,12 +12,14 @@ class ServiceRead(BaseModel):
     description: str
     url: str
     created_at: datetime
+    criticality: str
 
 
 class ServiceCreate(BaseModel):
     name: str
     description: str
     url: str
+    criticality: Literal["low", "medium", "high"] = "medium"
 
 
 class UserCreate(BaseModel):

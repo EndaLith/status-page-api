@@ -25,7 +25,13 @@ class Service(Base):
     created_at = Column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+    criticality = Column(String, nullable=False, server_default=text("'medium'"))
     is_active = Column(Boolean, nullable=False, server_default=text("True"))
+    __table_args__ = (
+        CheckConstraint(
+            "criticality IN ('low','medium','high')", name="ck_service_criticality"
+        ),
+    )
 
 
 class HealthCheck(Base):

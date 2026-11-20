@@ -82,7 +82,12 @@ def create_service(
     db: Session = Depends(get_db),
     admin: User = (Depends(require_admin)),
 ):
-    service = Service(name=data.name, description=data.description, url=data.url)
+    service = Service(
+        name=data.name,
+        description=data.description,
+        url=data.url,
+        criticality=data.criticality,
+    )
     db.add(service)
     try:
         db.commit()
@@ -113,6 +118,7 @@ def update_service(
         service.name = data.name
         service.description = data.description
         service.url = data.url
+        service.criticality = data.criticality
         try:
             db.commit()
         except IntegrityError:
