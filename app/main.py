@@ -2,7 +2,7 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.security import OAuth2PasswordRequestForm
-from sqlalchemy import func
+from sqlalchemy import and_, exists, func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -304,12 +304,23 @@ def get_uptime(
     if service is None:
         raise HTTPException(status_code=404, detail="Service not found")
     since = datetime.now(UTC) - (timedelta(days=days))
+    in_maintenance = exists().where(
+        and_(
+            MaintenanceWindow.service_id == HealthCheck.service_id,
+            HealthCheck.checked_at >= MaintenanceWindow.started_at,
+            HealthCheck.checked_at <= MaintenanceWindow.ended_at,
+        )
+    )
     total, up = (
         db.query(
             func.count(HealthCheck.id),
             func.count(HealthCheck.id).filter(HealthCheck.is_up.is_(True)),
         )
-        .filter(HealthCheck.service_id == service_id, HealthCheck.checked_at >= since)
+        .filter(
+            HealthCheck.service_id == service_id,
+            HealthCheck.checked_at >= since,
+            ~in_maintenance,
+        )
         .one()
     )
     percent = None if total == 0 else round(up / total * 100, 2)

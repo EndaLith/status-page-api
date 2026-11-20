@@ -1,3 +1,6 @@
+from datetime import UTC, datetime, timedelta
+
+
 def create_service(client, admin_header, name="A"):
     response = client.post(
         "/services",
@@ -60,3 +63,58 @@ def test_uptime_ignores_other_services(client, admin_header):
     add_checks(client, admin_header, second, [False, False])
     assert client.get(f"/services/{first}/uptime").json()["uptime_percent"] == 100.0
     assert client.get(f"/services/{second}/uptime").json()["uptime_percent"] == 0.0
+
+
+def window_body(service_id, start, end):
+    return {
+        "service_id": service_id,
+        "title": "Maintenance",
+        "description": "Planned",
+        "started_at": start.isoformat(),
+        "ended_at": end.isoformat(),
+    }
+
+
+def test_uptime_exludes_checks_during_maintenance(client, admin_header):
+    service_id = create_service(client, admin_header)
+    add_checks(client, admin_header, service_id, [True, True, False, False])
+    now = datetime.now(UTC)
+    client.post(
+        "/maintenance-windows",
+        json=window_body(
+            service_id, now - timedelta(hours=1), now + timedelta(hours=1)
+        ),
+        headers=admin_header,
+    )
+    body = client.get(f"/services/{service_id}/uptime").json()
+    assert body["total_checks"] == 0
+    assert body["uptime_percent"] is None
+
+
+def test_other_service_maintenance_is_ignored(client, admin_header):
+    first = create_service(client, admin_header, "A")
+    second = create_service(client, admin_header, "B")
+    add_checks(client, admin_header, first, [True, False])
+    now = datetime.now(UTC)
+    client.post(
+        "/maintenance-windows",
+        json=window_body(second, now - timedelta(hours=1), now + timedelta(hours=1)),
+        headers=admin_header,
+    )
+    body = client.get(f"/services/{first}/uptime").json()
+    assert body["total_checks"] == 2
+    assert body["uptime_percent"] == 50.0
+
+
+def test_past_maintenance_is_ignored(client, admin_header):
+    service_id = create_service(client, admin_header)
+    add_checks(client, admin_header, service_id, [True, True, False, False])
+    past = datetime(2000, 1, 1, tzinfo=UTC)
+    client.post(
+        "/maintenance-windows",
+        json=window_body(service_id, past, past + timedelta(hours=2)),
+        headers=admin_header,
+    )
+    body = client.get(f"/services/{service_id}/uptime").json()
+    assert body["total_checks"] == 4
+    assert body["uptime_percent"] == 50.0
