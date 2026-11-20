@@ -29,7 +29,7 @@ class Service(Base):
     is_active = Column(Boolean, nullable=False, server_default=text("True"))
     __table_args__ = (
         CheckConstraint(
-            "criticality IN ('low','medium','high')", name="ck_service_criticality"
+            "criticality IN ('low','medium','high')", name="ck_services_criticality"
         ),
     )
 
